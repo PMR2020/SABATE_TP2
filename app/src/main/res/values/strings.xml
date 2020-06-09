@@ -1,0 +1,8 @@
+<resources>
+    <string name="app_name">PMR_TP1_TODO</string>
+    <string name="settings">Settings</string>
+    <string name="pseudo">Pseudo</string>
+    <string name="ok">OK</string>
+    <string name="new_list">Nouvelle liste</string>
+    <string name="new_item">Nouvel Item</string>
+</resources>
