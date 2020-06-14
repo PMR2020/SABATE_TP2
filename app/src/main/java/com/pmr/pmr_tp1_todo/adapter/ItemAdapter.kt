@@ -35,7 +35,7 @@ class ItemAdapter(
     override fun onBindViewHolder(holder: RecyclerView.ViewHolder,position:Int) {
         Log.d("ItemAdapter", "onBindViewHolder")
         val item=dataSet[position]
-        (holder as ItemViewHolder).bind(item.description,item.fait)
+        (holder as ItemViewHolder).bind(item.label,item.checked)
     }
 
 
@@ -64,10 +64,10 @@ class ItemAdapter(
             }
         }
 
-        fun bind(checkBox_text:String,checked:Boolean
+        fun bind(checkBox_text:String,checked:Int
         ) {
             checkBox.text = checkBox_text
-            checkBox.isChecked = checked
+            checkBox.isChecked = checked==1
         }
     }
 

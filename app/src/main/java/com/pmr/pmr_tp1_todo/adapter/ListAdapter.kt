@@ -33,7 +33,7 @@ class ListAdapter(
     override fun onBindViewHolder(holder: RecyclerView.ViewHolder,position:Int) {
         Log.d("ListAdapter", "onBindViewHolder")
          val title=dataSet[position]
-        (holder as ListViewHolder).bind(title.titreListeToDo)
+        (holder as ListViewHolder).bind(title.label)//titreListeToDo)
     }
 
 

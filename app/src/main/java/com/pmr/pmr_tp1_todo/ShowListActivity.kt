@@ -11,24 +11,51 @@ import android.view.MenuItem
 import android.view.View
 import android.widget.Button
 import android.widget.EditText
+import android.widget.ProgressBar
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
+import com.pmr.pmr_tp1_todo.DataProvider.checkItemFromApi
+import com.pmr.pmr_tp1_todo.DataProvider.createItemFromApi
+import com.pmr.pmr_tp1_todo.DataProvider.getItemsFromApi
 import com.pmr.pmr_tp1_todo.adapter.ItemAdapter
 import com.pmr.pmr_tp1_todo.model.ItemToDo
 import com.pmr.pmr_tp1_todo.model.ListeToDo
 import com.pmr.pmr_tp1_todo.model.ProfilListeToDo
+import kotlinx.coroutines.*
+import java.lang.Integer.parseInt
+import java.lang.Math.abs
 import java.lang.reflect.Type
 
 class ShowListActivity : AppCompatActivity(), ItemAdapter.ActionListenerItem, View.OnClickListener {
     var refBtnItemOk: Button? = null
     var refAreaItem: EditText? = null
+    var refProgress: ProgressBar? = null
 
     /* Gestion des recyclerview */
     private val adapter = newAdapter()
+
+    /* Lien avec API */
+    var linkWithAPI = false
+
+    var idList:Int?=null
+
+
+    private val activityScope = CoroutineScope(
+        SupervisorJob()
+                + Dispatchers.Main
+//                + CoroutineExceptionHandler { _,throwable ->
+//            Log.e(TAG,"CoroutineExceptionHandler : ${throwable.message}")
+//            Toast.makeText(this, "Mauvaise requête pour l'API", Toast.LENGTH_SHORT).show()
+//        }
+    )
+    override fun onDestroy() {
+        activityScope.cancel()
+        super.onDestroy()
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         Log.i(TAG, "OnCreate")
@@ -39,6 +66,7 @@ class ShowListActivity : AppCompatActivity(), ItemAdapter.ActionListenerItem, Vi
         /* On récupère les views */
         refBtnItemOk = findViewById(R.id.btn_item_OK) //id dans la classe R
         refAreaItem = findViewById(R.id.area_item)
+        refProgress = findViewById(R.id.progressbar)
 
         /* Listeners sur les boutons */
         /* On pourrait passer ici directement l'action mais on doit enregistrer le texte donc on préférera overrider onclick plus tard */
@@ -47,13 +75,17 @@ class ShowListActivity : AppCompatActivity(), ItemAdapter.ActionListenerItem, Vi
         /* Listeners sur le champ texte pour les log */
         refAreaItem?.setOnClickListener(this)
 
-        /*Affichage de la recyclerView et initialisation user et appel a loadprefs */
-        refreshRecyclerView()
+        val b = this.intent.extras
+        idList = b?.getString("idList")?.let { parseInt(it) } //on ne fait le parseInt que si l'objet n'est pas null
 
-        // Initialisations restantes pour charger et enregistrer les préférences //
-        //editor = prefs?.edit()
-
+        loadAPIConnexion() //inclut refreshRecyclerView()
     }
+
+    override fun onResume() {
+        super.onResume()
+        loadAPIConnexion() //inclut refreshRecyclerView()
+    }
+
 
     /* Création de la fonction pour pouvoir l'appeler à la suite de la création d'une nouvelle liste */
     fun refreshRecyclerView() {
@@ -64,63 +96,74 @@ class ShowListActivity : AppCompatActivity(), ItemAdapter.ActionListenerItem, Vi
         /* Affichage de toutes les listes pour le pseudo actuel */
         val dataSet = mutableListOf<ItemToDo>()
 
-        // On recharge les donéees qui ont peut etre changé//
-        // Chargement des profils //
-        var profils = getProfils()
+        if (linkWithAPI) { //si on a le lien avc l'API
+            var hash = getHashFromPrefs()
 
-        // MAJ du profil du user en question //
-        var user = profils.filter { it.active }[0]
+            var context = this
 
-        if (user!!.mesListToDo.size != 0) {
-            Log.i(TAG, user!!.login)
+            if (hash != "") {
+                // avoir les items de l'utilisateur en question
+                activityScope.launch {
+                    refProgress?.visibility = View.VISIBLE
+                    item_view.visibility = View.GONE
+                    var requete = ""
 
-            var list =
-                user!!.mesListToDo.filter { it.active }[0] // on prend la première et la seule d'après notre action dans choixlistactivity avant de passer à cete activité
+                    if (idList != null) {
+                        requete = "lists/$idList/items"
+                    }
+                    //requete = "lists/1/items"
+                    Log.i(TAG, "requete=" + requete)
+                    var items = getItemsFromApi(requete, hash)
 
-            for (item in list.listItemsToDo) { //si pas d'items on n'entre juste pas dans la boucle , on n'affichera donc rien
-                dataSet.add(item)
+                    for (item in items) { //si pas d'items on n'entre juste pas dans la boucle , on n'affichera donc rien
+                        dataSet.add(item)
+                    }
+                    // Pour affichage de la recyclerview /
+                    item_view.adapter = adapter
+                    item_view.layoutManager =
+                        LinearLayoutManager(context, RecyclerView.VERTICAL, false)
+
+                    adapter.showData(dataSet)
+                    refProgress?.visibility = View.GONE
+                    item_view.visibility = View.VISIBLE
+
+                }
             }
         }
-
-        // Pour affichage de la recyclerview //
-        item_view.adapter = adapter
-        item_view.layoutManager = LinearLayoutManager(this, RecyclerView.VERTICAL, false)
-
-        adapter.showData(dataSet)
-
+        else adapter.showData(dataSet) //sinon on n'affiche rien
     }
 
-    fun addItemToActiveList(item: ItemToDo) {
-
-        Log.i(TAG, "additemtoactivelist called")
-
-        // On recharge les donées qui ont peut etre changé //
-        // Chargement des profils //
-        //loadPrefs()
-        var profils = getProfils()
-
-        // MAJ du profil du user en question //
-        var user = profils.filter { it.active }[0]
-        var list = user!!.mesListToDo.filter { it.active }[0].listItemsToDo
-
-        for (itemliste in list) {
-            if (itemliste.description == item.description) {
-                Log.i(TAG, "Item non ajouté car déjà présent")
-                Toast.makeText(
-                    this,
-                    "Item non ajouté car déjà présent, veuillez saisir une autre description",
-                    Toast.LENGTH_LONG
-                ).show()
-                return //on sort de la fonction avant de l'ajouter
-            }
-        }
-        list.add(
-            item
-        ) //pour que ça l'ajoute directement ddans la bonne liste du bon user, on repart à chaque fois de profils que l'on sauvegarde
-
-
-        editPrefs(profils, "profils")
-    }
+//    fun addItemToActiveList(item: ItemToDo) {
+//
+//        Log.i(TAG, "additemtoactivelist called")
+//
+//        // On recharge les donées qui ont peut etre changé //
+//        // Chargement des profils //
+//        //loadPrefs()
+//        var profils = getProfils()
+//
+//        // MAJ du profil du user en question //
+//        var user = profils.filter { it.active }[0]
+//        var list = user!!.mesListToDo.filter { it.active }[0].listItemsToDo
+//
+//        for (itemliste in list) {
+//            if (itemliste.description == item.description) {
+//                Log.i(TAG, "Item non ajouté car déjà présent")
+//                Toast.makeText(
+//                    this,
+//                    "Item non ajouté car déjà présent, veuillez saisir une autre description",
+//                    Toast.LENGTH_LONG
+//                ).show()
+//                return //on sort de la fonction avant de l'ajouter
+//            }
+//        }
+//        list.add(
+//            item
+//        ) //pour que ça l'ajoute directement ddans la bonne liste du bon user, on repart à chaque fois de profils que l'on sauvegarde
+//
+//
+//        editPrefs(profils, "profils")
+//    }
 
     /* Pour recyclerview */
     private fun newAdapter(): ItemAdapter {
@@ -132,70 +175,134 @@ class ShowListActivity : AppCompatActivity(), ItemAdapter.ActionListenerItem, Vi
     }
 
 
-    override fun onItemClicked(itemToDo: ItemToDo) { // on va chercher le bon item et l'enregistrer comme étant coché
-        Log.d("CShowListActivity", "onItemClicked $itemToDo")
+    override fun onItemClicked(itemToDo: ItemToDo) {// on va chercher le bon item et l'enregistrer comme étant coché
+        var hash = getHashFromPrefs()
 
-        // On recharge les données qui ont peut etre changé //
-        // Chargement des profils //
+        var context = this
 
-        var profils = getProfils()
+        if (hash!=""){
+            // avoir les listes de l'utilisateur en question
+            activityScope.launch{
 
-        // MAJ du profil du user en question //
-        var user = profils.filter { it.active }[0]
+                var requete = ""
 
-        for (item in user!!.mesListToDo.filter { it.active }[0].listItemsToDo) {
-            if (item.description == itemToDo.description) {
+                if (idList!=null) {
 
-                //comme dans choixlisteactivity, on ne peut pas
-                // comparer les éléments directement, ça doit être du au stockage dans les données et à mon
-                // refresh qui va faire qu'une comparaison de type == ne fonctionnera pas car les objets ne
-                // seront pas tout à fait les mêmes, en utilisant des bundles on aurait pu éviter cela
+                    requete = "lists/$idList/items/${itemToDo.id}"
+                    Log.i(TAG,"requete="+requete)
+                    var item = checkItemFromApi(requete,abs(itemToDo.checked-1), hash) //On inverse la valeur du check
+                    Log.i(TAG,"item changed : "+item.toString())
 
-                // En contrepartie, on ne pourra pas nommer deux items de la même façon,
-                // c'est plutot logique en terme d'UX
 
-                item.fait = !item.fait // on change l'attribut fait de l'item
+                    refreshRecyclerView() //MAJ de l'affichage
+                }
+
+
+
             }
         }
-
-        editPrefs(profils, "profils")
-
-        refreshRecyclerView() //pour afficher qu'on a coché la case
-
     }
+//        Log.d("CShowListActivity", "onItemClicked $itemToDo")
+//
+//        // On recharge les données qui ont peut etre changé //
+//        // Chargement des profils //
+//
+//        var profils = getProfils()
+//
+//        // MAJ du profil du user en question //
+//        var user = profils.filter { it.active }[0]
+//
+//        for (item in user!!.mesListToDo.filter { it.active }[0].listItemsToDo) {
+//            if (item.description == itemToDo.description) {
+//
+//                //comme dans choixlisteactivity, on ne peut pas
+//                // comparer les éléments directement, ça doit être du au stockage dans les données et à mon
+//                // refresh qui va faire qu'une comparaison de type == ne fonctionnera pas car les objets ne
+//                // seront pas tout à fait les mêmes, en utilisant des bundles on aurait pu éviter cela
+//
+//                // En contrepartie, on ne pourra pas nommer deux items de la même façon,
+//                // c'est plutot logique en terme d'UX
+//
+//                item.fait = !item.fait // on change l'attribut fait de l'item
+//            }
+//        }
+//
+//        editPrefs(profils, "profils")
+//
+//        refreshRecyclerView() //pour afficher qu'on a coché la case
+//
+//    }
 
 
-    /* Gestion des champs (bouton+textarea)*/
     override fun onClick(v: View) {
-
-        Log.i(TAG, "OnClick ${v.id}") // v is the clicked view
-
+        Log.i(TAG,"OnClick ${v.id}") // v is the clicked view
         when (v.id) {
-
             R.id.btn_item_OK -> {
 
-                /* Éventuellement toast */
-                //val t = Toast.makeText(this, "Création du nouvel item", Toast.LENGTH_SHORT) //notif utilisateur
-                //t.show()
-                Log.i(TAG,"Ok button clicked")
+                var hash = getHashFromPrefs()
+                var context = this
 
-                /* Création du nouvel item */
+                if (hash!=""){
+                    // avoir les listes de l'utilisateur en question
+                    activityScope.launch{
 
-                var itemToDo = ItemToDo(refAreaItem?.text.toString())
+                        var requete = ""
 
-                /* Enregistrer dans les préférences (donc dans les listes du user) le nom de l'item */
-                addItemToActiveList(itemToDo)
+                        if (idList!=null) {
 
-                /* Afficher le résultat avec notre fonction de refresh*/
-                refreshRecyclerView()
+                            var label=refAreaItem?.text.toString()
 
-            }
+                            if(label=="")Toast.makeText(context, "Saisissez un titre pour l'item", Toast.LENGTH_SHORT).show() //vérification que l'on a un label, sinon la requête ne fonctionnera pas
+                            else {
+                                requete = "lists/$idList/items"
+                                Log.i(TAG, "requete=" + requete)
+                                var item = createItemFromApi(
+                                    requete,
+                                    label,
+                                    hash
+                                ) //On inverse la valeur du check
+                                Log.i(TAG, "item changed : " + item.toString())
 
-            R.id.area_item -> {
-                /* Log done above the when */
+                                refreshRecyclerView() //MAJ de l'affichage
+                            }
+                        }
+
+
+
+                    }
+                }
             }
         }
+
     }
+//        Log.i(TAG, "OnClick ${v.id}") // v is the clicked view
+//
+//        when (v.id) {
+//
+//            R.id.btn_item_OK -> {
+//
+//                /* Éventuellement toast */
+//                //val t = Toast.makeText(this, "Création du nouvel item", Toast.LENGTH_SHORT) //notif utilisateur
+//                //t.show()
+//                Log.i(TAG,"Ok button clicked")
+//
+//                /* Création du nouvel item */
+//
+//                var itemToDo = ItemToDo(refAreaItem?.text.toString())
+//
+//                /* Enregistrer dans les préférences (donc dans les listes du user) le nom de l'item */
+//                addItemToActiveList(itemToDo)
+//
+//                /* Afficher le résultat avec notre fonction de refresh*/
+//                refreshRecyclerView()
+//
+//            }
+//
+//            R.id.area_item -> {
+//                /* Log done above the when */
+//            }
+//        }
+//    }
 
     /* Gestion des menus */
 
@@ -268,18 +375,92 @@ class ShowListActivity : AppCompatActivity(), ItemAdapter.ActionListenerItem, Vi
 
     }
 
-    fun editPrefs(
-        item: MutableList<ProfilListeToDo>,
-        name: String
-    ) { //fonctionne seulement avec les profils mais on n'a besoin que de cela
-        Log.i(TAG,"Enregistrement des profils dans les préférences de l'applicaiton")
-        val gson_set = Gson()
-        val json_set: String = gson_set.toJson(item) //écriture de la valeur
+//    fun editPrefs(
+//        item: MutableList<ProfilListeToDo>,
+//        name: String
+//    ) { //fonctionne seulement avec les profils mais on n'a besoin que de cela
+//        Log.i(TAG,"Enregistrement des profils dans les préférences de l'applicaiton")
+//        val gson_set = Gson()
+//        val json_set: String = gson_set.toJson(item) //écriture de la valeur
+//
+//        var prefs = loadPrefs() //on charge les dernières préférences
+//        var editor = prefs.edit()
+//        editor?.putString(name, json_set)
+//        editor?.apply()
+//    }
+    fun getHashFromPrefs(): String {
+        Log.i(TAG, "Récupération du hash dans les préférences")
+        // Récupération des profils //
+        val gson = Gson()
+        val json: String? = loadPrefs().getString("hash", "") //lecture de la valeur
 
-        var prefs = loadPrefs() //on charge les dernières préférences
-        var editor = prefs.edit()
-        editor?.putString(name, json_set)
-        editor?.apply()
+        var hash = ""
+
+        if (json != "") {
+
+            val collectionType: Type = object : //surement pas nécessaire
+                TypeToken<String>() {}.type
+
+            hash = gson.fromJson(json, collectionType)
+
+        } else {
+            Log.i(TAG, "hash NOT found")
+        }
+        return hash //vide si non trouvé
+    }
+//    fun getBaseURLFromPrefs(): String {
+//        Log.i(TAG, "Récupération du hash dans les préférences")
+//        // Récupération des profils //
+//        val gson = Gson()
+//        val json: String? = loadPrefs().getString("baseURL", "") //lecture de la valeur
+//
+//        var base = ""
+//
+//        if (json != "") {
+//
+//            val collectionType: Type = object : //surement pas nécessaire
+//                TypeToken<String>() {}.type
+//
+//            base = gson.fromJson(json, collectionType)
+//
+//        } else {
+//            Log.i(TAG, "baseURL NOT found")
+//            base="http://10.0.2.2:8888/todo-api/"
+//        }
+//        return base //vide si non trouvé
+//    }
+//
+private fun loadAPIConnexion(){
+    var context = this
+
+    activityScope.launch{
+
+        // Vérification d'accès au réseau //
+        //vérification de la présence du hash par exemple//
+        try{
+            Log.i(TAG, "baseurl : " +DataProvider.BASE_URL)
+            var hashtext = DataProvider.getHashFromApi("tom","web")
+            Log.i(TAG, "connexion with API hash : ${hashtext}") //fonction qui marche ou pas, j'aurais voulu récupérer "version" mais ça ne fonctionne pas
+            activateBtn(true)
+            linkWithAPI=true
+            /*Affichage de la recyclerView et initialisation user et appel a loadprefs */
+            refreshRecyclerView() //on le met ici pour que ça s'exécute après que le linkwithAPi ait ét changé
+        }
+        catch(e:Exception) {
+            Toast.makeText(context, "Cannot load API Connexion", Toast.LENGTH_SHORT).show()
+            activateBtn(false)
+            linkWithAPI=false
+            /*Affichage de la recyclerView et initialisation user et appel a loadprefs */
+            refreshRecyclerView()
+            //throw(e)
+        }
+
+    }
+}
+    private fun activateBtn(bool:Boolean){
+        //Puis activation du bouton ou non
+        refBtnItemOk?.isEnabled = bool
+        refAreaItem?.isEnabled = bool
     }
 
 

@@ -5,4 +5,7 @@
     <string name="ok">OK</string>
     <string name="new_list">Nouvelle liste</string>
     <string name="new_item">Nouvel Item</string>
+    <string name="sauvegarder">Sauvegarder</string>
+    <string name="baseURL">URL de base de l\'API</string>
+    <string name="password">Password</string>
 </resources>

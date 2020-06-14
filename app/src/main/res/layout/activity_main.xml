@@ -30,15 +30,37 @@
          app:layout_constraintStart_toEndOf="@+id/txt_pseudo"
          app:layout_constraintTop_toTopOf="parent" />
 
+     <TextView
+         android:id="@+id/txt_password"
+         android:layout_width="wrap_content"
+         android:layout_height="wrap_content"
+         android:layout_marginStart="16dp"
+         android:layout_marginTop="36dp"
+         android:text="@string/password"
+         android:textSize="24sp"
+         app:layout_constraintStart_toStartOf="parent"
+         app:layout_constraintTop_toBottomOf="@+id/txt_pseudo" />
+
      <Button
          android:id="@+id/btn_pseudo_OK"
          android:layout_width="wrap_content"
          android:layout_height="wrap_content"
-         android:layout_marginTop="10dp"
-         android:layout_marginEnd="10dp"
+         android:layout_marginTop="30dp"
+         android:layout_marginEnd="48dp"
          android:text="@android:string/ok"
          android:textSize="24sp"
          app:layout_constraintEnd_toEndOf="parent"
+         app:layout_constraintTop_toBottomOf="@+id/area_password" />
+
+     <EditText
+         android:id="@+id/area_password"
+         android:layout_width="wrap_content"
+         android:layout_height="wrap_content"
+         android:layout_marginTop="30dp"
+         android:ems="10"
+         android:inputType="textPassword"
+         app:layout_constraintEnd_toEndOf="parent"
+         app:layout_constraintStart_toEndOf="@+id/txt_password"
          app:layout_constraintTop_toBottomOf="@+id/area_pseudo" />
 
 </androidx.constraintlayout.widget.ConstraintLayout>
