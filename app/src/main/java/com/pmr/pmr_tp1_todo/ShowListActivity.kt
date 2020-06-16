@@ -47,10 +47,7 @@ class ShowListActivity : AppCompatActivity(), ItemAdapter.ActionListenerItem, Vi
     private val activityScope = CoroutineScope(
         SupervisorJob()
                 + Dispatchers.Main
-//                + CoroutineExceptionHandler { _,throwable ->
-//            Log.e(TAG,"CoroutineExceptionHandler : ${throwable.message}")
-//            Toast.makeText(this, "Mauvaise requête pour l'API", Toast.LENGTH_SHORT).show()
-//        }
+
     )
     override fun onDestroy() {
         activityScope.cancel()
@@ -69,7 +66,6 @@ class ShowListActivity : AppCompatActivity(), ItemAdapter.ActionListenerItem, Vi
         refProgress = findViewById(R.id.progressbar)
 
         /* Listeners sur les boutons */
-        /* On pourrait passer ici directement l'action mais on doit enregistrer le texte donc on préférera overrider onclick plus tard */
         refBtnItemOk?.setOnClickListener(this)
 
         /* Listeners sur le champ texte pour les log */
@@ -104,28 +100,37 @@ class ShowListActivity : AppCompatActivity(), ItemAdapter.ActionListenerItem, Vi
             if (hash != "") {
                 // avoir les items de l'utilisateur en question
                 activityScope.launch {
-                    refProgress?.visibility = View.VISIBLE
-                    item_view.visibility = View.GONE
-                    var requete = ""
+                    try {
+                        //UX on affiche un chargement quand on demande des données à l'API
+                        refProgress?.visibility = View.VISIBLE
+                        //UX on ne cache pas les items à chaque click, l'app donne l'impression de ramer sinon
+//                    item_view.visibility = View.GONE
+                        var requete = ""
 
-                    if (idList != null) {
-                        requete = "lists/$idList/items"
+                        if (idList != null) {
+                            requete = "lists/$idList/items"
+                        }
+
+                        Log.i(TAG, "requete=" + requete)
+                        var items = getItemsFromApi(requete, hash)
+
+                        for (item in items) { //si pas d'items on n'entre juste pas dans la boucle , on n'affichera donc rien
+                            dataSet.add(item)
+                        }
+                        // Pour affichage de la recyclerview /
+                        item_view.adapter = adapter
+                        item_view.layoutManager =
+                            LinearLayoutManager(context, RecyclerView.VERTICAL, false)
+
+                        adapter.showData(dataSet)
+                        refProgress?.visibility = View.GONE
+//                    item_view.visibility = View.VISIBLE
                     }
-                    //requete = "lists/1/items"
-                    Log.i(TAG, "requete=" + requete)
-                    var items = getItemsFromApi(requete, hash)
 
-                    for (item in items) { //si pas d'items on n'entre juste pas dans la boucle , on n'affichera donc rien
-                        dataSet.add(item)
+                    catch(e:Exception) {
+                        Toast.makeText(context,"Cannot load lists from API", Toast.LENGTH_SHORT).show()
+                        Log.e(TAG,"Cannot load lists from API")
                     }
-                    // Pour affichage de la recyclerview /
-                    item_view.adapter = adapter
-                    item_view.layoutManager =
-                        LinearLayoutManager(context, RecyclerView.VERTICAL, false)
-
-                    adapter.showData(dataSet)
-                    refProgress?.visibility = View.GONE
-                    item_view.visibility = View.VISIBLE
 
                 }
             }
@@ -183,18 +188,23 @@ class ShowListActivity : AppCompatActivity(), ItemAdapter.ActionListenerItem, Vi
         if (hash!=""){
             // avoir les listes de l'utilisateur en question
             activityScope.launch{
+                try{
+                    var requete = ""
 
-                var requete = ""
+                    if (idList!=null) {
 
-                if (idList!=null) {
-
-                    requete = "lists/$idList/items/${itemToDo.id}"
-                    Log.i(TAG,"requete="+requete)
-                    var item = checkItemFromApi(requete,abs(itemToDo.checked-1), hash) //On inverse la valeur du check
-                    Log.i(TAG,"item changed : "+item.toString())
+                        requete = "lists/$idList/items/${itemToDo.id}"
+                        Log.i(TAG,"requete="+requete)
+                        var item = checkItemFromApi(requete,abs(itemToDo.checked-1), hash) //On inverse la valeur du check
+                        Log.i(TAG,"item changed : "+item.toString())
 
 
-                    refreshRecyclerView() //MAJ de l'affichage
+                        refreshRecyclerView() //MAJ de l'affichage
+                    }
+                }
+                catch(e:Exception){
+                    Log.e(TAG,e.message) // on reporte l'erreur
+                    Toast.makeText(context, "Cannot change item on API", Toast.LENGTH_SHORT).show()
                 }
 
 
@@ -202,37 +212,6 @@ class ShowListActivity : AppCompatActivity(), ItemAdapter.ActionListenerItem, Vi
             }
         }
     }
-//        Log.d("CShowListActivity", "onItemClicked $itemToDo")
-//
-//        // On recharge les données qui ont peut etre changé //
-//        // Chargement des profils //
-//
-//        var profils = getProfils()
-//
-//        // MAJ du profil du user en question //
-//        var user = profils.filter { it.active }[0]
-//
-//        for (item in user!!.mesListToDo.filter { it.active }[0].listItemsToDo) {
-//            if (item.description == itemToDo.description) {
-//
-//                //comme dans choixlisteactivity, on ne peut pas
-//                // comparer les éléments directement, ça doit être du au stockage dans les données et à mon
-//                // refresh qui va faire qu'une comparaison de type == ne fonctionnera pas car les objets ne
-//                // seront pas tout à fait les mêmes, en utilisant des bundles on aurait pu éviter cela
-//
-//                // En contrepartie, on ne pourra pas nommer deux items de la même façon,
-//                // c'est plutot logique en terme d'UX
-//
-//                item.fait = !item.fait // on change l'attribut fait de l'item
-//            }
-//        }
-//
-//        editPrefs(profils, "profils")
-//
-//        refreshRecyclerView() //pour afficher qu'on a coché la case
-//
-//    }
-
 
     override fun onClick(v: View) {
         Log.i(TAG,"OnClick ${v.id}") // v is the clicked view
@@ -245,65 +224,37 @@ class ShowListActivity : AppCompatActivity(), ItemAdapter.ActionListenerItem, Vi
                 if (hash!=""){
                     // avoir les listes de l'utilisateur en question
                     activityScope.launch{
+                        try{
+                            var requete = ""
 
-                        var requete = ""
+                            if (idList!=null) {
 
-                        if (idList!=null) {
+                                var label=refAreaItem?.text.toString()
 
-                            var label=refAreaItem?.text.toString()
+                                if(label=="")Toast.makeText(context, "Saisissez un titre pour l'item", Toast.LENGTH_SHORT).show() //vérification que l'on a un label, sinon la requête ne fonctionnera pas
+                                else {
+                                    requete = "lists/$idList/items"
+                                    Log.i(TAG, "requete=" + requete)
+                                    var item = createItemFromApi(
+                                        requete,
+                                        label,
+                                        hash
+                                    ) //On inverse la valeur du check
+                                    Log.i(TAG, "item changed : " + item.toString())
 
-                            if(label=="")Toast.makeText(context, "Saisissez un titre pour l'item", Toast.LENGTH_SHORT).show() //vérification que l'on a un label, sinon la requête ne fonctionnera pas
-                            else {
-                                requete = "lists/$idList/items"
-                                Log.i(TAG, "requete=" + requete)
-                                var item = createItemFromApi(
-                                    requete,
-                                    label,
-                                    hash
-                                ) //On inverse la valeur du check
-                                Log.i(TAG, "item changed : " + item.toString())
-
-                                refreshRecyclerView() //MAJ de l'affichage
+                                    refreshRecyclerView() //MAJ de l'affichage
+                                }
                             }
                         }
-
-
-
+                        catch(e:Exception){
+                            Log.e(TAG,e.message) // on reporte l'erreur
+                            Toast.makeText(context, "Cannot add item on API", Toast.LENGTH_SHORT).show()
+                        }
                     }
                 }
             }
         }
-
     }
-//        Log.i(TAG, "OnClick ${v.id}") // v is the clicked view
-//
-//        when (v.id) {
-//
-//            R.id.btn_item_OK -> {
-//
-//                /* Éventuellement toast */
-//                //val t = Toast.makeText(this, "Création du nouvel item", Toast.LENGTH_SHORT) //notif utilisateur
-//                //t.show()
-//                Log.i(TAG,"Ok button clicked")
-//
-//                /* Création du nouvel item */
-//
-//                var itemToDo = ItemToDo(refAreaItem?.text.toString())
-//
-//                /* Enregistrer dans les préférences (donc dans les listes du user) le nom de l'item */
-//                addItemToActiveList(itemToDo)
-//
-//                /* Afficher le résultat avec notre fonction de refresh*/
-//                refreshRecyclerView()
-//
-//            }
-//
-//            R.id.area_item -> {
-//                /* Log done above the when */
-//            }
-//        }
-//    }
-
     /* Gestion des menus */
 
     override fun onCreateOptionsMenu(menu: Menu?): Boolean {
@@ -334,9 +285,7 @@ class ShowListActivity : AppCompatActivity(), ItemAdapter.ActionListenerItem, Vi
 
     }
 
-
     /* Objet TAG pour pouvoir relever les traces d'exécution */
-
     companion object {
         private const val TAG = "TRACES_ShowList"
     }
@@ -375,19 +324,6 @@ class ShowListActivity : AppCompatActivity(), ItemAdapter.ActionListenerItem, Vi
 
     }
 
-//    fun editPrefs(
-//        item: MutableList<ProfilListeToDo>,
-//        name: String
-//    ) { //fonctionne seulement avec les profils mais on n'a besoin que de cela
-//        Log.i(TAG,"Enregistrement des profils dans les préférences de l'applicaiton")
-//        val gson_set = Gson()
-//        val json_set: String = gson_set.toJson(item) //écriture de la valeur
-//
-//        var prefs = loadPrefs() //on charge les dernières préférences
-//        var editor = prefs.edit()
-//        editor?.putString(name, json_set)
-//        editor?.apply()
-//    }
     fun getHashFromPrefs(): String {
         Log.i(TAG, "Récupération du hash dans les préférences")
         // Récupération des profils //
@@ -408,28 +344,7 @@ class ShowListActivity : AppCompatActivity(), ItemAdapter.ActionListenerItem, Vi
         }
         return hash //vide si non trouvé
     }
-//    fun getBaseURLFromPrefs(): String {
-//        Log.i(TAG, "Récupération du hash dans les préférences")
-//        // Récupération des profils //
-//        val gson = Gson()
-//        val json: String? = loadPrefs().getString("baseURL", "") //lecture de la valeur
-//
-//        var base = ""
-//
-//        if (json != "") {
-//
-//            val collectionType: Type = object : //surement pas nécessaire
-//                TypeToken<String>() {}.type
-//
-//            base = gson.fromJson(json, collectionType)
-//
-//        } else {
-//            Log.i(TAG, "baseURL NOT found")
-//            base="http://10.0.2.2:8888/todo-api/"
-//        }
-//        return base //vide si non trouvé
-//    }
-//
+
 private fun loadAPIConnexion(){
     var context = this
 

@@ -30,19 +30,7 @@ object DataProvider {
             .create(ServiceAPI::class.java)
     }
 
-//    suspend fun getListsFromApi(baseURL:String,hash:String) : List<ListeToDo> = service.getListProfils(baseURL,hash).lists
-//
-//    suspend fun getApiConnexion(): Int = service.getConnexion().version
-//
-//    suspend fun getHashFromApi(baseURL:String,pseudo:String,password:String):String = service.getHash(baseURL,pseudo,password).hash
-//
-//    suspend fun getItemsFromApi(baseURL:String,requete:String,hash:String)=service.getItems(baseURL,requete,hash).items
-//
-//    suspend fun checkItemFromApi(baseURL:String,requete:String,check:Int,hash:String)=service.checkItem(baseURL,requete,check,hash).item
-//
-//    suspend fun createItemFromApi(baseURL:String,requete:String,label:String,hash:String)=service.createItem(baseURL,requete,label,hash).item
     suspend fun getListsFromApi(hash:String) : List<ListeToDo> = service.getListProfils(hash).lists
-
 
     suspend fun getHashFromApi(pseudo:String,password:String):String = service.getHash(pseudo,password).hash
 

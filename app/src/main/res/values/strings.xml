@@ -8,4 +8,5 @@
     <string name="sauvegarder">Sauvegarder</string>
     <string name="baseURL">URL de base de l\'API</string>
     <string name="password">Password</string>
+    <string name="last_pseudo">Dernier pseudo renseigné</string>
 </resources>

@@ -39,10 +39,7 @@ class ChoixListActivity : AppCompatActivity(), ListAdapter.ActionListener,View.O
     private val activityScope = CoroutineScope(
         SupervisorJob()
                 + Dispatchers.Main
-//                + CoroutineExceptionHandler { _,throwable ->
-//            Log.e(TAG,"CoroutineExceptionHandler : ${throwable.message}")
-//            Toast.makeText(this, "UX TODO", Toast.LENGTH_SHORT).show()
-//        }
+//Pas de gestion des erreurs, on fera donc attention à avoir un try catch à chaque coroutine, mais on peut gérer séparément les erreurs
     )
     override fun onDestroy() {
         activityScope.cancel()
@@ -61,7 +58,6 @@ class ChoixListActivity : AppCompatActivity(), ListAdapter.ActionListener,View.O
         refProgress = findViewById(R.id.progressbar)
 
         /* Listeners sur les boutons */
-        /* On pourrait passer ici directement l'action mais on doit enregistrer le texte donc on préférera overrider onclick plus tard */
         refBtnListOk?.setOnClickListener(this)
 
         /* Listeners sur le champ texte pour les log */
@@ -102,21 +98,29 @@ class ChoixListActivity : AppCompatActivity(), ListAdapter.ActionListener,View.O
             if (hash!=""){ //évite de déclencher des erreurs de requête
                 // avoir les listes de l'utilisateur en question
                 activityScope.launch{
-                    refProgress?.visibility = View.VISIBLE
-                    list.visibility = View.GONE
-                    var lists = DataProvider.getListsFromApi(hash)
-                    Log.i(TAG, "imported from API ${lists}")
-                    //TODO("Ajouter le visuel de chargement comme dans code de M.Boukadir")
-                    for(list in lists){
-                        dataSet.add(list)
-                    }
-                    // Pour affichage de la recyclerview /
-                    list.adapter = adapter
-                    list.layoutManager = LinearLayoutManager(context,RecyclerView.VERTICAL,false)
+                    try{
+                        //UX on affiche un chargement quand on demande des données à l'API
+                        refProgress?.visibility = View.VISIBLE
+                        //UX on cache le reste parce qu'on charge les listes, elles ne sont pas encore là
+                        list.visibility = View.GONE
+                        var lists = DataProvider.getListsFromApi(hash)
+                        Log.i(TAG, "imported from API ${lists}")
+                        for(list in lists){
+                            dataSet.add(list)
+                        }
+                        // Pour affichage de la recyclerview /
+                        list.adapter = adapter
+                        list.layoutManager = LinearLayoutManager(context,RecyclerView.VERTICAL,false)
 
-                    adapter.showData(dataSet)
-                    refProgress?.visibility = View.GONE
-                    list.visibility = View.VISIBLE
+                        adapter.showData(dataSet)
+                        refProgress?.visibility = View.GONE
+                        list.visibility = View.VISIBLE
+                    }
+                    catch(e:Exception) {
+                        Toast.makeText(context,"Cannot load lists from API", Toast.LENGTH_SHORT).show()
+                        Log.e(TAG,e.message)//reporte l'erreur
+                    }
+
                 }
 
             }
@@ -124,28 +128,6 @@ class ChoixListActivity : AppCompatActivity(), ListAdapter.ActionListener,View.O
         }
         else adapter.showData(dataSet) //sinon on n'affiche rien
     }
-
-//    fun addListToLoggedUser(liste: ListeToDo) {
-//        Log.i(TAG,"fonction addListToLoggedUser appelée")
-//        // Chargement des profils //
-//        var profils = getProfils()
-//
-//        // MAJ du profil du user en question //
-//        var user = profils.filter{it.active}[0]
-//        // MAJ de ses listes
-//        for (listuser in user!!.mesListToDo){
-//            if (listuser.titreListeToDo==liste.titreListeToDo){
-//                Log.i(TAG,"Liste non ajoutée car déjà présente")
-//                Toast.makeText(this,"Liste non ajoutée car déjà présente, veuillez saisir un autre titre", Toast.LENGTH_LONG).show()
-//                return //on sort de la fonction avant de l'ajouter
-//            }
-//        }
-//        user!!.mesListToDo.add(liste) ///pour que ça l'ajoute directement dans les profils
-//
-//        // Sauvegarde des profils //
-//        editPrefs(profils,"profils")
-//
-//    }
 
     /* Pour recyclerview */
     private fun newAdapter(): ListAdapter {
@@ -174,44 +156,8 @@ class ChoixListActivity : AppCompatActivity(), ListAdapter.ActionListener,View.O
         Log.i(TAG,"Starting ShowListActivity")
         startActivity(versShowList)
 
-
-
     }
 
-//        /* On active la liste cliquée */
-//        /* On désactive les autres listes */
-//
-//        // Chargement des profils //
-//        var profils = getProfils()
-//
-//        // MAJ du profil du user que l'on utilise //
-//        var user = profils.filter{it.active}[0]
-//
-//        if (user!!.mesListToDo.size !=0) {
-//            user!!.mesListToDo.forEach { it.active = false }//parcours des listes d'un utilisateur pour tout mettre à false
-//
-//            for (list in user!!.mesListToDo){
-//                Log.i(TAG, (list==listeToDo).toString()) //aucune idée de pourquoi nous n'avons pas exactement le même objet
-//                // TODO : détailler dans le doc la mthode mise en place on n'autorisera donc pas 2 listes à avoir le même nom
-//
-//                if (list.titreListeToDo == listeToDo.titreListeToDo){
-//                    list.active=true //on ne met que la liste sélectionnée en active, elle sera donc la seule, au moins pour cet utilisateur
-//                    Log.i(TAG,list.titreListeToDo)
-//                }
-//            }
-//            //user!!.mesListToDo.filter{it == listeToDo}[0].active = true
-//        }
-//
-//        /* On réenregistre les données */
-//        editPrefs(profils,"profils")
-//
-//        val versShowList = Intent(this, ShowListActivity::class.java)
-//
-//        /* On change d'activité */
-//        Log.i(TAG,"Starting ShowListActivity")
-//        startActivity(versShowList)
-//
-//    }
 
     /* Gestion des champs (bouton+textarea)*/
     override fun onClick(v: View) {
@@ -224,39 +170,6 @@ class ChoixListActivity : AppCompatActivity(), ListAdapter.ActionListener,View.O
 
     }
 //
-//        Log.i(TAG,"OnClick ${v.id}") // v is the clicked view
-//
-//        when (v.id) {
-//
-//            R.id.btn_list_OK -> {
-//
-//
-//                /* Contenu champ texte */
-//                val s = refAreaList?.text.toString()
-//
-//                /* Éventuellement toast */
-//                //val t = Toast.makeText(this, "Création de la nouvelle liste", Toast.LENGTH_SHORT) //notif utilisateur
-//                //t.show()
-//
-//                /* Création de nouvelle liste */
-//
-//                var listeToDo = ListeToDo(refAreaList?.text.toString())
-//
-//                /* Enregistrer dans les préférences (donc dans les listes du user) le nom de la liste */
-//
-//                addListToLoggedUser(listeToDo)
-//
-//                /* Afficher le résultat avec notre fonction de refresh */
-//                refreshRecyclerView()
-//
-//            }
-//
-//            R.id.area_list -> {
-//                /* Log fait avant le when */
-//            }
-//        }
-//    }
-
     /* Gestion des menus */
 
     override fun onCreateOptionsMenu(menu: Menu?): Boolean {
@@ -303,32 +216,6 @@ class ChoixListActivity : AppCompatActivity(), ListAdapter.ActionListener,View.O
         return prefs
     }
 
-    fun getProfils(): MutableList<ProfilListeToDo> {
-        Log.i(TAG,"Récupération des profils")
-        // Récupération des profils //
-        val gson = Gson()
-        val json: String? = loadPrefs().getString("profils", "") //lecture de la valeur
-
-        var profils = mutableListOf<ProfilListeToDo>()
-
-        if (json != "") {
-
-            /* Solution pour enregistrer une liste de pseudos en json */
-
-            val collectionType: Type = object :
-                TypeToken<MutableList<ProfilListeToDo>>() {}.type
-            profils = gson.fromJson(json, collectionType)
-            //val profils: ProfilListeToDo = gson.fromJson<ProfilListeToDo>(json, ProfilListeToDo::class.java)
-            Log.i(TAG, "pseudo_list found : " + json)
-
-
-        } else {
-            Log.i(TAG, "pseudo_list NOT found")
-        }
-        return profils //vide si non trouvé
-
-    }
-
     fun getHashFromPrefs(): String {
         Log.i(TAG, "Récupération du hash dans les préférences")
         // Récupération des profils //
@@ -350,53 +237,6 @@ class ChoixListActivity : AppCompatActivity(), ListAdapter.ActionListener,View.O
         return hash //vide si non trouvé
     }
 
-    fun editPrefs(
-        item: MutableList<ProfilListeToDo>,
-        name: String
-    ) { //fonctionne seulement avec les profils mais on n'a besoin que de cela
-        Log.i(TAG,"Enregistrement des profils dans les préférences de l'applicaiton")
-        val gson_set = Gson()
-        val json_set: String = gson_set.toJson(item) //écriture de la valeur
-
-        var prefs = loadPrefs() //on charge les dernières préférences
-        var editor = prefs.edit()
-        editor?.putString(name, json_set)
-        editor?.apply()
-    }
-//    fun editBASEURL(
-//        baseURL:String
-//    ) { //fonctionne seulement avec les profils mais on n'a besoin que de cela
-//        Log.i(TAG,"Enregistrement des profils dans les préférences de l'applicaiton")
-//        val gson_set = Gson()
-//        val json_set: String = gson_set.toJson(baseURL) //écriture de la valeur
-//
-//
-//        var prefs = loadPrefs() //on charge les dernières préférences
-//        var editor = prefs.edit()
-//        editor?.putString("baseURL", json_set)
-//        editor?.apply()
-//    }
-//    fun getBaseURLFromPrefs(): String {
-//        Log.i(TAG, "Récupération du hash dans les préférences")
-//        // Récupération des profils //
-//        val gson = Gson()
-//        val json: String? = loadPrefs().getString("baseURL", "") //lecture de la valeur
-//
-//        var base = ""
-//
-//        if (json != "") {
-//
-//            val collectionType: Type = object : //surement pas nécessaire
-//                TypeToken<String>() {}.type
-//
-//            base = gson.fromJson(json, collectionType)
-//
-//        } else {
-//            Log.i(TAG, "baseURL NOT found")
-//            base="http://10.0.2.2:8888/todo-api/"
-//        }
-//        return base //vide si non trouvé
-//    }
 
     private fun loadAPIConnexion(){
         var context = this
@@ -408,7 +248,7 @@ class ChoixListActivity : AppCompatActivity(), ListAdapter.ActionListener,View.O
             try{
                 Log.i(TAG, "baseurl : " +DataProvider.BASE_URL)
                 var hashtext = DataProvider.getHashFromApi("tom","web")
-                Log.i(TAG, "connexion with API hash : ${hashtext}") //fonction qui marche ou pas, j'aurais voulu récupérer "version" mais ça ne fonctionne pas
+                Log.i(TAG, "connexion with API hash : ${hashtext}")
                 activateBtn(true)
                 linkWithAPI=true
                 /*Affichage de la recyclerView et initialisation user et appel a loadprefs */
